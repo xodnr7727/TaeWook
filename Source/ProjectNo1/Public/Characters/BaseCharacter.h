@@ -20,7 +20,7 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
-	virtual void GetHit_Implementation(const FVector& ImpactPoint) override;
+	virtual void GetHit_Implementation(const FVector& ImpactPoint, AActor* Hitter) override;
 	virtual void Attack();
 	virtual void Die();
 	void DirectionalHitReact(const FVector& ImpactPoint);
@@ -39,9 +39,23 @@ protected:
 	void PlayHitReactMontage(const FName& SectionName);
 	virtual int32 PlayAttackMontage();
 	virtual int32 PlayDeathMontage();
+	virtual void PlayDiveMontage();
+	void StopAttackMontage();
+
+	UFUNCTION(BlueprintCallable)
+		FVector GetTranslationWarpTarget();
+
+	UFUNCTION(BlueprintCallable)
+		FVector GetRotationWarpTarget();
 
 	UFUNCTION(BlueprintCallable)
 	virtual void AttackEnd();
+
+	UFUNCTION(BlueprintCallable)
+	virtual void BlockEnd();
+
+	UFUNCTION(BlueprintCallable)
+		virtual void DiveEnd();
 
 	UFUNCTION(BlueprintCallable)
 		void SetWeaponCollisionEnabled(ECollisionEnabled::Type CollisionEnabled);
@@ -52,6 +66,12 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
 		UAttributeComponent* Attributes;
 
+	UPROPERTY(BlueprintReadOnly, Category = Combat)
+		AActor* CombatTarget;
+
+	UPROPERTY(EditAnywhere, Category = Combat)
+		double WarpTargetDistance = 75.f;
+
 	UPROPERTY(EditDefaultsOnly, Category = Combat)
 		UAnimMontage* AttackMontage;
 
@@ -60,6 +80,9 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, Category = Combat)
 		UAnimMontage* DeathMontage;
+
+	UPROPERTY(EditDefaultsOnly, Category = Combat)
+		UAnimMontage* DiveMontage;
 
 	UPROPERTY(EditAnywhere, Category = Combat)
 		TArray<FName> AttackMontageSections;

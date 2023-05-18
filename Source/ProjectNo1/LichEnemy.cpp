@@ -8,7 +8,9 @@
 #include "Components/AttributeComponent.h"
 #include "HUD/HealthBarComponent.h"
 #include "Weapons/Weapon.h"
+#include "Kismet/GameplayStatics.h"
 #include "AIController.h"
+#include "Soul.h"
 
 ALichEnemy::ALichEnemy()
 {
@@ -32,8 +34,10 @@ ALichEnemy::ALichEnemy()
 	PawnSensing = CreateDefaultSubobject<UPawnSensingComponent>(TEXT("PawnSensing"));
 	PawnSensing->SightRadius = 4000.f;
 	PawnSensing->SetPeripheralVisionAngle(45.f);
-}
+	HitNumberDestroyTime = 1.5f;
 
+
+}
 void ALichEnemy::BeginPlay()
 {
 	Super::BeginPlay();
@@ -46,7 +50,7 @@ void ALichEnemy::BeginPlay()
 void ALichEnemy::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
-
+	UpdateHitNumbers();
 	if (IsDead()) return;
 	if (EnemyState > EEnemyState::EES_Patrolling)
 	{
@@ -89,10 +93,15 @@ void ALichEnemy::CheckCombatTarget()
 	}
 }
 
-void ALichEnemy::GetHit_Implementation(const FVector& ImpactPoint)//타격 받는 함수
+void ALichEnemy::GetHit_Implementation(const FVector& ImpactPoint, AActor* Hitter)//타격 받는 함수
 {
-	Super::GetHit_Implementation(ImpactPoint);
-	ShowHealthBar();
+	Super::GetHit_Implementation(ImpactPoint, Hitter);
+	if (!IsDead()) ShowHealthBar();
+	ClearPatrolTimer();
+	ClearAttackTimer();
+	SetWeaponCollisionEnabled(ECollisionEnabled::NoCollision);
+
+	StopAttackMontage();
 }
 
 void ALichEnemy::SpawnDefaultWeapon()
@@ -101,11 +110,10 @@ void ALichEnemy::SpawnDefaultWeapon()
 	if (World && WeaponClass)
 	{
 		AWeapon* DefaultWeapon = World->SpawnActor<AWeapon>(WeaponClass);
-		DefaultWeapon->Equip(GetMesh(), FName("HammerCenter"), this, this);
+		DefaultWeapon->Equip(GetMesh(), FName("WeaponSocket"), this, this);
 		EquippedWeapon = DefaultWeapon;
 	}
 }
-
 
 void ALichEnemy::Die()
 {
@@ -116,6 +124,21 @@ void ALichEnemy::Die()
 	DisableCapsule();
 	SetLifeSpan(DeathLifeSpan);
 	GetCharacterMovement()->bOrientRotationToMovement = false;
+	SetWeaponCollisionEnabled(ECollisionEnabled::NoCollision);
+	SpawnEx();
+}
+
+void ALichEnemy::SpawnEx()
+{
+	UWorld* World = GetWorld();
+	if (World && ExClass && Attributes)
+	{
+		ASoul* SpawnedEx = World->SpawnActor<ASoul>(ExClass, GetActorLocation(), GetActorRotation());
+		if (SpawnedEx)
+		{
+			SpawnedEx->SetSouls(Attributes->GetSouls());
+		}
+	}
 }
 
 bool ALichEnemy::InTargetRange(AActor* Target, double Radius)
@@ -138,7 +161,16 @@ float ALichEnemy::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent
 {
 	HandleDamage(DamageAmount);
 	CombatTarget = EventInstigator->GetPawn();
-	ChaseTarget();
+
+	if (IsInsideAttackRadius())
+	{
+		EnemyState = EEnemyState::EES_Attacking;
+	}
+	else if (IsOutsideAttackRadius())
+	{
+		ChaseTarget();
+	}
+
 	return DamageAmount;
 }
 
@@ -147,6 +179,41 @@ void ALichEnemy::Destroyed()
 	if (EquippedWeapon)
 	{
 		EquippedWeapon->Destroy();
+	}
+}
+
+void ALichEnemy::StoreHitNumber(UUserWidget* HitNubmer, FVector Location)
+{
+	HitNumbers.Add(HitNubmer, Location);
+
+	FTimerHandle HitNumberTimer;
+	FTimerDelegate HitNumberDelegate;
+	HitNumberDelegate.BindUFunction(this, FName("DestroyHitNumber"), HitNubmer);
+	GetWorld()->GetTimerManager().SetTimer(
+		HitNumberTimer, 
+		HitNumberDelegate, 
+		HitNumberDestroyTime, 
+		false);
+}
+
+void ALichEnemy::DestroyHitNumber(UUserWidget* HitNumber)
+{
+	HitNumbers.Remove(HitNumber);
+	HitNumber->RemoveFromParent();
+}
+
+void ALichEnemy::UpdateHitNumbers()
+{
+	for (auto& HitPair : HitNumbers) {
+		UUserWidget* HitNumber{ HitPair.Key };
+		const FVector Location{ HitPair.Value };
+		FVector2D ScreenPosition;
+
+		UGameplayStatics::ProjectWorldToScreen(
+			GetWorld()->GetFirstPlayerController(), 
+			Location, 
+			ScreenPosition);
+		HitNumber->SetPositionInViewport(ScreenPosition);
 	}
 }
 
@@ -194,8 +261,10 @@ AActor* ALichEnemy::ChoosePatrolTarget()
 
 void ALichEnemy::Attack()
 {
-	EnemyState = EEnemyState::EES_Engaged;
 	Super::Attack();
+	if (CombatTarget == nullptr) return;
+
+	EnemyState = EEnemyState::EES_Engaged;
 	PlayAttackMontage();
 }
 
@@ -242,6 +311,7 @@ void ALichEnemy::InitializeEnemy()
 	EnemyController = Cast<AAIController>(GetController());
 	MoveToTarget(PatrolTarget);
 	HideHealthBar();
+	SpawnDefaultWeapon();
 }
 
 void ALichEnemy::HideHealthBar()

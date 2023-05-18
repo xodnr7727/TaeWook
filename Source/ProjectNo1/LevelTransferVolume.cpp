@@ -3,8 +3,14 @@
 
 #include "LevelTransferVolume.h"
 #include "ProjectNo1/ProjectNo1Character.h"
+#include "Characters/BaseCharacter.h"
+#include "CharacterTypes.h"
 #include "Engine/Classes/Components/BoxComponent.h"
+#include "Components/InputComponent.h"
+#include "Components/StaticMeshComponent.h"
 #include "Kismet/GameplayStatics.h"
+#include "Item.h"
+#include "Weapons/Weapon.h"
 #include <string.h>
 
 // Sets default values
@@ -39,3 +45,4 @@ void ALevelTransferVolume::NotifyActorBeginOverlap(AActor* OtherActor)
 		UGameplayStatics::OpenLevel(GetWorld(), FName(TransferLevelName));
 	}
 }
+

@@ -10,15 +10,23 @@
 #include "GameFramework/SpringArmComponent.h"
 #include "Animation/AnimInstance.h"
 #include "Animation/AnimMontage.h"
+#include "Kismet/GameplayStatics.h"
+#include "Components/BoxComponent.h"
+#include "Kismet/KismetSystemLibrary.h"
+#include "Interfaces/HitInterface.h"
+#include "Components/AttributeComponent.h"
 #include "Item.h"
 #include "Weapons/Weapon.h"
+#include "HUD/MyProNo1HUD.h"
+#include "HUD/SlashOverlay.h"
+#include "Soul.h"
 
 //////////////////////////////////////////////////////////////////////////
 // AProjectNo1Character
 
 AProjectNo1Character::AProjectNo1Character()
 {
-	PrimaryActorTick.bCanEverTick = false;
+	PrimaryActorTick.bCanEverTick = true;
 	// Set size for collision capsule
 	GetCapsuleComponent()->InitCapsuleSize(42.f, 96.0f);
 
@@ -27,7 +35,7 @@ AProjectNo1Character::AProjectNo1Character()
 
 	// Don't rotate when the controller rotates. Let that just affect the camera.
 	bUseControllerRotationPitch = false;
-	bUseControllerRotationYaw = false;
+	bUseControllerRotationYaw = true;
 	bUseControllerRotationRoll = false;
 
 	// Configure character movement
@@ -61,13 +69,44 @@ AProjectNo1Character::AProjectNo1Character()
 
 	// Note: The skeletal mesh and anim blueprint references on the Mesh component (inherited from Character) 
 	// are set in the derived blueprint asset named ThirdPersonCharacter (to avoid direct content references in C++)
-	BlockCnt = 0;
+
+	SprintSpeedMultiplier = 1.5f; //달리기 배속
 
 }
 
-void AProjectNo1Character::GetHit_Implementation(const FVector& ImpactPoint)
+void AProjectNo1Character::GetHit_Implementation(const FVector& ImpactPoint, AActor* Hitter)
 {
-	Super::GetHit_Implementation(ImpactPoint);
+	Super::GetHit_Implementation(ImpactPoint, Hitter);
+
+	SetWeaponCollisionEnabled(ECollisionEnabled::NoCollision);
+	ActionState = EActionState::EAS_HitReaction;
+}
+
+void AProjectNo1Character::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+
+	if (Attributes && SlashOverlay)
+	{
+		Attributes->RegenHealth(DeltaTime);
+		Attributes->RegenStamina(DeltaTime);
+		SlashOverlay->SetHealthBarPercent(Attributes->GetHealthPercent());
+		SlashOverlay->SetStaminaBarPercent(Attributes->GetStaminaPercent());
+		SlashOverlay->SetExperienceBarPercent(Attributes->GetExperiencePercent());
+	}
+}
+
+void AProjectNo1Character::SetOverlappingItem(AItem* Item)
+{
+	OverlappingItem = Item;
+}
+
+void AProjectNo1Character::AddEx(ASoul* Soul)
+{
+	{
+		Attributes->AddSouls(Soul->GetSouls());
+		SlashOverlay->SetExperienceBarPercent(Attributes->GetExperiencePercent());
+	}
 }
 
 void AProjectNo1Character::BeginPlay()
@@ -75,17 +114,14 @@ void AProjectNo1Character::BeginPlay()
 	Super::BeginPlay();
 
 	Tags.Add(FName("EngageableTarget"));
+	InitializeSlashOverlay();
 }
-
-
-//////////////////////////////////////////////////////////////////////////
-// Input
 
 void AProjectNo1Character::SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent)
 {
 	// Set up gameplay key bindings
 	check(PlayerInputComponent);
-	PlayerInputComponent->BindAction("Jump", IE_Pressed, this, &ACharacter::Jump);
+	PlayerInputComponent->BindAction("Jump", IE_Pressed, this, &AProjectNo1Character::Jump);
 	PlayerInputComponent->BindAction("Jump", IE_Released, this, &ACharacter::StopJumping);
 
 	//PlayerInputComponent->BindAction("LMB", IE_Pressed, this, &AProjectNo1Character::LMBDown);
@@ -93,8 +129,7 @@ void AProjectNo1Character::SetupPlayerInputComponent(class UInputComponent* Play
 
 	PlayerInputComponent->BindAction(FName("Attack"), IE_Pressed, this, &AProjectNo1Character::Attack);
 
-	PlayerInputComponent->BindAction("RMB", IE_Pressed, this, &AProjectNo1Character::RMBDown);
-	PlayerInputComponent->BindAction("RMB", IE_Released, this, &AProjectNo1Character::RMBUp);
+	PlayerInputComponent->BindAction(FName("Block"), IE_Pressed, this, &AProjectNo1Character::RMKeyPressed);
 
 	PlayerInputComponent->BindAxis("Move Forward / Backward", this, &AProjectNo1Character::MoveForward);
 	PlayerInputComponent->BindAxis("Move Right / Left", this, &AProjectNo1Character::MoveRight);
@@ -113,6 +148,41 @@ void AProjectNo1Character::SetupPlayerInputComponent(class UInputComponent* Play
 
 	PlayerInputComponent->BindAction("Equip", IE_Pressed, this, &AProjectNo1Character::EKeyPressed);
 
+	PlayerInputComponent->BindAction("Sprint", IE_Pressed, this, &AProjectNo1Character::Sprint);
+	PlayerInputComponent->BindAction("Sprint", IE_Released, this, &AProjectNo1Character::StopSprinting);
+
+	PlayerInputComponent->BindAction(FName("Dive"), IE_Pressed, this, &AProjectNo1Character::Dive);
+
+}
+
+void AProjectNo1Character::Jump()
+{
+	if (IsUnoccupied())
+	{
+		Super::Jump();
+	}
+
+}
+
+void AProjectNo1Character::Sprint()
+{
+	if (!HasEnoughStamina()) return;
+		GetCharacterMovement()->MaxWalkSpeed *= SprintSpeedMultiplier;
+	
+}
+
+void AProjectNo1Character::StopSprinting()
+{
+	GetCharacterMovement()->MaxWalkSpeed /= SprintSpeedMultiplier;
+
+
+}
+
+float AProjectNo1Character::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
+{
+	HandleDamage(DamageAmount);
+	SetHUDHealth();
+	return DamageAmount;
 }
 
 void AProjectNo1Character::TouchStarted(ETouchIndex::Type FingerIndex, FVector Location)
@@ -140,9 +210,10 @@ void AProjectNo1Character::LookUpAtRate(float Rate)
 void AProjectNo1Character::MoveForward(float Value)
 {
 	UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
-	if ((AnimInstance->Montage_IsPlaying(AttackMontage))) return; //공격중일때 이동 멈춤
-	else if ((AnimInstance->Montage_IsPlaying(ShieldMontage))) return;
+	//if ((AnimInstance->Montage_IsPlaying(AttackMontage))) return; //공격중일때 이동 멈춤
+	if ((AnimInstance->Montage_IsPlaying(ShieldMontage))) return;
 	else if ((AnimInstance->Montage_IsPlaying(EquipUnEquipMontage))) return;
+	else if ((AnimInstance->Montage_IsPlaying(HitReactMontage))) return;
 
 	if ((Controller != nullptr) && (Value != 0.0f))
 	{
@@ -159,9 +230,10 @@ void AProjectNo1Character::MoveForward(float Value)
 void AProjectNo1Character::MoveRight(float Value)
 {
 	UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
-	if ((AnimInstance->Montage_IsPlaying(AttackMontage))) return; //공격중일때 이동 멈춤
-	else if((AnimInstance->Montage_IsPlaying(ShieldMontage))) return;
+	//if ((AnimInstance->Montage_IsPlaying(AttackMontage))) return; //공격중일때 이동 멈춤
+	if((AnimInstance->Montage_IsPlaying(ShieldMontage))) return;
 	else if ((AnimInstance->Montage_IsPlaying(EquipUnEquipMontage))) return;
+	else if ((AnimInstance->Montage_IsPlaying(HitReactMontage))) return;
 
 	if ((Controller != nullptr) && (Value != 0.0f))
 	{
@@ -181,6 +253,10 @@ void AProjectNo1Character::EKeyPressed()
 	AWeapon* OverlappingWeapon = Cast<AWeapon>(OverlappingItem);
 	if (OverlappingWeapon)
 	{
+		if (EquippedWeapon)
+		{
+			EquippedWeapon->Destroy();
+		}
 		EquipWeapon(OverlappingWeapon);
 	}
 	else
@@ -193,6 +269,14 @@ void AProjectNo1Character::EKeyPressed()
 		{
 			Arm();
 		}
+	}
+}
+
+void AProjectNo1Character::RMKeyPressed()
+{
+	if (CanBlock())
+	{
+		DisBlock();
 	}
 }
 
@@ -213,6 +297,15 @@ void AProjectNo1Character::EquipWeapon(AWeapon* Weapon)
 	EquippedWeapon = Weapon;
 }
 
+bool AProjectNo1Character::HasEnoughStamina()
+{
+	return Attributes && Attributes->GetStamina() > Attributes->GetDiveCost();
+}
+
+bool AProjectNo1Character::IsOccupied()
+{
+	return ActionState != EActionState::EAS_Unoccupied;
+}
 
 bool AProjectNo1Character::CanDisarm()
 {
@@ -224,6 +317,12 @@ bool AProjectNo1Character::CanArm()
 {
 	return ActionState == EActionState::EAS_Unoccupied &&
 		CharacterState == ECharacterState::ECS_Unequipped && EquippedWeapon;
+}
+
+bool AProjectNo1Character::CanBlock()
+{
+	return ActionState == EActionState::EAS_Unoccupied &&
+		CharacterState != ECharacterState::ECS_Unequipped;
 }
 
 void AProjectNo1Character::Disarm()
@@ -238,6 +337,20 @@ void AProjectNo1Character::Arm()
 	PlayEquip(FName("Equip"));
 	CharacterState = ECharacterState::ECS_EquippedOneHandedWeapon;
 	ActionState = EActionState::EAS_EquippingWeapon;
+}
+
+void AProjectNo1Character::DisBlock()
+{
+	Block(FName("Block1"));
+	CharacterState = ECharacterState::ECS_EquippedOneHandedWeapon;
+	ActionState = EActionState::EAS_Blocking;
+}
+
+void AProjectNo1Character::AsBlock()
+{
+	Block(FName("Block2"));
+	CharacterState = ECharacterState::ECS_EquippedOneHandedWeapon;
+	ActionState = EActionState::EAS_EndBlocking;
 }
 
 void AProjectNo1Character::AttachWeaponToBack()
@@ -261,8 +374,57 @@ void AProjectNo1Character::FinishEquipping()
 	ActionState = EActionState::EAS_Unoccupied;
 }
 
+void AProjectNo1Character::HitReactEnd()
+{
+	ActionState = EActionState::EAS_Unoccupied;
+}
+
+bool AProjectNo1Character::IsUnoccupied()
+{
+	return ActionState == EActionState::EAS_Unoccupied;
+}
+
+void AProjectNo1Character::InitializeSlashOverlay()
+{
+	APlayerController* PlayerController = Cast<APlayerController>(GetController());
+	if (PlayerController)
+	{
+		AMyProNo1HUD* MyProNo1HUD = Cast<AMyProNo1HUD>(PlayerController->GetHUD());
+		if (MyProNo1HUD)
+		{
+			SlashOverlay = MyProNo1HUD->GetSlashOverlay();
+			if (SlashOverlay && Attributes)
+			{
+				SlashOverlay->SetHealthBarPercent(Attributes->GetHealthPercent());
+				SlashOverlay->SetStaminaBarPercent(1.f);
+				SlashOverlay->SetExperienceBarPercent(Attributes->GetExperiencePercent());
+			}
+		}
+	}
+}
+
+void AProjectNo1Character::SetHUDHealth()
+{
+	if (SlashOverlay && Attributes)
+	{
+		SlashOverlay->SetHealthBarPercent(Attributes->GetHealthPercent());
+	}
+}
+
 void AProjectNo1Character::AttackEnd()
 {
+	ActionState = EActionState::EAS_Unoccupied;
+}
+
+void AProjectNo1Character::BlockEnd()
+{
+	ActionState = EActionState::EAS_Unoccupied;
+}
+
+void AProjectNo1Character::DiveEnd()
+{
+	Super::DiveEnd();
+
 	ActionState = EActionState::EAS_Unoccupied;
 }
 
@@ -275,37 +437,32 @@ void AProjectNo1Character::Attack() {
 	}
 }
 
+void AProjectNo1Character::Dive()
+{
+if (IsOccupied() || !HasEnoughStamina()) return;
+	PlayDiveMontage();
+	ActionState = EActionState::EAS_Dive;
+	if (Attributes && SlashOverlay)
+	{
+		Attributes->UseStamina(Attributes->GetDiveCost());
+		SlashOverlay->SetStaminaBarPercent(Attributes->GetStaminaPercent());
+	}
+}
+
 bool AProjectNo1Character::CanAttack()
 {
 	return ActionState == EActionState::EAS_Unoccupied &&
 		CharacterState != ECharacterState::ECS_Unequipped;
 }
 
-
-void AProjectNo1Character::ShieldUp()
+void AProjectNo1Character::Block(const FName& SectionName)
 {
-	UE_LOG(LogTemp, Warning, TEXT("ShieldUp()")); 
-	bRMBDown = true;
-
 	UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
-	if (!AnimInstance || !ShieldMontage) return;
-
-	//완전히 안전한 상태
-
-	bBlocking = true;
-
-	const char* combolist1[] = { "Combo01","Combo02"};
-
-		//오른쪽 마우스 버튼을 눌렀을 경우
-			//애니메이션이 실행중이지 않았을때
-		if (!(AnimInstance->Montage_IsPlaying(ShieldMontage))) {
-			AnimInstance->Montage_Play(ShieldMontage);
-		}
-	//애니메이션이 실행중일때
-		else if (AnimInstance->Montage_IsPlaying(ShieldMontage)) {
-			AnimInstance->Montage_Play(ShieldMontage);
-			AnimInstance->Montage_JumpToSection(FName(combolist1[BlockCnt]),ShieldMontage);
-		}
+	if (AnimInstance && ShieldMontage)
+	{
+		AnimInstance->Montage_Play(ShieldMontage);
+		AnimInstance->Montage_JumpToSection(SectionName, ShieldMontage);
+	}
 }
 
 void AProjectNo1Character::PlayEquip(const FName& SectionName)
@@ -318,22 +475,6 @@ void AProjectNo1Character::PlayEquip(const FName& SectionName)
 	}
 }
 
-
-void AProjectNo1Character::RMBDown()
-{
-	UE_LOG(LogTemp, Warning, TEXT("RMBDown()"));
-	bRMBDown = true;
-
-	//막기이지 않을때
-	if (bBlocking == false) {
-		ShieldUp();
-	}
-	//막기중일때
-	else if (bBlocking == true) {
-		bIsBlockButtonWhenBlock = true;
-	}
-}
-
 void AProjectNo1Character::EndAttacking()
 {
 	ActionState = EActionState::EAS_Unoccupied;
@@ -341,24 +482,8 @@ void AProjectNo1Character::EndAttacking()
 
 void AProjectNo1Character::EndBlocking()
 {
-	UE_LOG(LogTemp, Warning, TEXT("EndBlocking()"));
-	bBlocking = false;
+	ActionState = EActionState::EAS_Unoccupied;
 }
-
-
-void AProjectNo1Character::BlockInputChecking()
-{
-	UE_LOG(LogTemp, Warning, TEXT("BlockInputChecking()"));
-	if (BlockCnt >= 2) {
-		BlockCnt = 0;
-	}
-	if (bIsBlockButtonWhenBlock == true) {
-		BlockCnt += 1;
-		bIsBlockButtonWhenBlock = false;
-		ShieldUp();
-	}
-}
-
 
 
 	

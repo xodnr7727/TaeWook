@@ -26,6 +26,7 @@ public:
 protected:
 	virtual void NotifyActorBeginOverlap(AActor* OtherActor) override;
 
+
 private:
 	UPROPERTY(EditAnywhere, meta = (AllowPrivateAccess = "true"))
 		FName TransferLevelName;

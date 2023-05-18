@@ -6,26 +6,37 @@
 #include "GameFramework/Character.h"
 #include "Characters/BaseCharacter.h"
 #include "CharacterTypes.h"
+#include "Interfaces/PickupInterface.h"
 #include "ProjectNo1Character.generated.h"
-
 class AItem;
+class ASoul;
 class USpringArmComponent;
 class UCameraComponent;
 class UAnimMontage;
-
+class USlashOverlay;
+class USoundBase;
 UCLASS()
-class AProjectNo1Character : public ABaseCharacter
+class AProjectNo1Character : public ABaseCharacter, public IPickupInterface
 {
 	GENERATED_BODY()
 
 public:
 	AProjectNo1Character();
+	virtual void Tick(float DeltaTime) override;
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+	virtual void Jump() override;
 
-	virtual void GetHit_Implementation(const FVector& ImpactPoint) override;
+	virtual float TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent, class AController* EventInstigator, AActor* DamageCauser) override;
+
+	virtual void GetHit_Implementation(const FVector& ImpactPoint, AActor* Hitter) override;
+	virtual void SetOverlappingItem(AItem* Item) override;
+	virtual void AddEx(ASoul* Soul) override;
 	/** Base turn rate, in deg/sec. Other scaling may affect final turn rate. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Input)
 		float TurnRateGamepad;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Character Movement : Walking")
+		float SprintSpeedMultiplier;
 
 protected:
 
@@ -37,23 +48,30 @@ protected:
 	/** Called for side to side input */
 	void MoveRight(float Value);
 	void EKeyPressed();
+	void RMKeyPressed();
 	void IfAttack();
-
-	bool bRMBDown;
-	bool bBlocking;
-	bool bIsBlockButtonWhenBlock;
-	int BlockCnt;
-	int EquipCnt;
+	void Sprint();
+	void StopSprinting();
 	
 	void EquipWeapon(AWeapon* Weapon);
 	virtual void AttackEnd() override;
+	virtual void BlockEnd() override;
+	virtual void DiveEnd() override;
+	virtual void Attack() override;
+	void Dive();
 
 	bool CanDisarm();
 	bool CanArm();
+	bool CanBlock();
+	bool HasEnoughStamina();
+	bool IsOccupied();
 	virtual bool CanAttack() override;
 	void Disarm();
 	void Arm();
+	void DisBlock();
+	void AsBlock();
 	void PlayEquip(const FName& SectionName);
+	void Block(const FName& SectionName);
 
 	UFUNCTION(BlueprintCallable)
 	void AttachWeaponToBack();
@@ -63,6 +81,9 @@ protected:
 
 	UFUNCTION(BlueprintCallable)
 	void FinishEquipping();
+	 
+	UFUNCTION(BlueprintCallable)
+	void HitReactEnd();
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Block")
 	class UAnimMontage* ShieldMontage;
@@ -70,21 +91,11 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Equip")
 	class UAnimMontage* EquipUnEquipMontage;
 
-	virtual void Attack() override;
-
-	void ShieldUp();
-
-	void RMBDown();
-	FORCEINLINE void RMBUp() { bRMBDown = false; }
-
 	UFUNCTION(BlueprintCallable)
 	void EndAttacking();
 
 	UFUNCTION(BlueprintCallable)
 	void EndBlocking();
-
-	UFUNCTION(BlueprintCallable)
-	void BlockInputChecking();
 
 	/** 
 	 * Called via input to turn at a given rate. 
@@ -104,14 +115,18 @@ protected:
 	/** Handler for when a touch input stops. */
 	void TouchStopped(ETouchIndex::Type FingerIndex, FVector Location);
 
+	UFUNCTION(BlueprintImplementableEvent)
+		void CreateFields(const FVector& FieldLocation);
 public:
 	/** Returns CameraBoom subobject **/
 	FORCEINLINE class USpringArmComponent* GetCameraBoom() const { return CameraBoom; }
 	/** Returns FollowCamera subobject **/
 	FORCEINLINE class UCameraComponent* GetFollowCamera() const { return FollowCamera; }
 
-
 private:
+	    void InitializeSlashOverlay();
+	    bool IsUnoccupied();
+		void SetHUDHealth();
 
 		UPROPERTY(VisibleInstanceOnly)
 		AItem* OverlappingItem;
@@ -128,9 +143,16 @@ private:
 
 		UPROPERTY(BlueprintReadWrite, meta = (AllowPrivateAccess = "true"))
 		EActionState ActionState = EActionState::EAS_Unoccupied;
-		
+
+		UPROPERTY()
+		USlashOverlay* SlashOverlay;
+
+		UPROPERTY(VisibleAnywhere)
+		USceneComponent* BoxTraceStart;
+
+		UPROPERTY(VisibleAnywhere)
+		USceneComponent* BoxTraceEnd;
 public:
-	FORCEINLINE void SetOverlappingItem(AItem* Item) { OverlappingItem = Item; }
 	FORCEINLINE ECharacterState GetCharacterState() const { return CharacterState; }
 };
 

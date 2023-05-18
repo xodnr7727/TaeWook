@@ -5,15 +5,19 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "Item.generated.h"
-
 class UCapsuleComponent;
+class UNiagaraComponent;
 
 enum class EItemState : uint8
 {
 	EIS_Hovering,
-	EIS_Equipped
+	EIS_Equipped,
 };
-
+enum class EWeaponAState : uint8
+{
+	EIS_Attaking,
+	EIS_NoAttaking
+};
 UCLASS()
 class PROJECTNO1_API AItem : public AActor
 {
@@ -45,6 +49,9 @@ protected:
 	UFUNCTION()
 	virtual void OnCapsuleOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
 	
+	virtual void SpawnPickupSystem();
+	virtual void SpawnPickupSound();
+
 	UFUNCTION()
 	virtual void OnCapsuleEndOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex);
 
@@ -57,11 +64,17 @@ protected:
 		UCapsuleComponent* Capsule;
 
 	UPROPERTY(EditAnywhere)
-		class UNiagaraComponent* EmbersEffect;
+		UNiagaraComponent* ItemEffect;
+
+	UPROPERTY(EditAnywhere)
+		USoundBase* PickupSound;
 
 private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
 		float RunningTime;
+
+	UPROPERTY(EditAnywhere)
+		class UNiagaraSystem* PickupEffect;
 
 public:	
 	// Called every frame

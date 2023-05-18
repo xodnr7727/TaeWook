@@ -7,8 +7,8 @@
 #include "Interfaces/HitInterface.h"
 #include "Characters/BaseCharacter.h"
 #include "CharacterTypes.h"
+#include "Templates/UnrealTemplate.h"
 #include "LichEnemy.generated.h"
-
 class UHealthBarComponent;
 class UPawnSensingComponent;
 UCLASS()
@@ -26,6 +26,7 @@ protected:
 
 	/** <ABaseCharacter> */
 	virtual void Die() override;
+	void SpawnEx();
 	bool InTargetRange(AActor* Target, double Radius);
 	void MoveToTarget(AActor* Target);
 	AActor* ChoosePatrolTarget();
@@ -34,6 +35,11 @@ protected:
 	virtual void HandleDamage(float DamageAmount) override;
 	virtual int32 PlayDeathMontage() override;
 	virtual void AttackEnd() override;
+
+	UFUNCTION()
+	void DestroyHitNumber(UUserWidget* HitNumber);
+
+	void UpdateHitNumbers();
 
 	UPROPERTY(EditAnywhere, Category = Combat)
 		float DeathLifeSpan = 8.f;
@@ -46,22 +52,26 @@ protected:
 
 	UPROPERTY(BlueprintReadOnly)
 		EEnemyState EnemyState = EEnemyState::EES_Patrolling;
+
 public:	
 
 	virtual void Tick(float DeltaTime) override;
 	void CheckPatrolTarget();
 	void CheckCombatTarget();
 
-	virtual void GetHit_Implementation(const FVector& ImpactPoint) override;
+	virtual void GetHit_Implementation(const FVector& ImpactPoint, AActor* Hitter) override;
 
 	virtual float TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent, class AController* EventInstigator, AActor* DamageCauser) override;
 	
 	virtual void Destroyed() override;
 
-private:
+	UFUNCTION(BlueprintImplementableEvent)
+	void ShowHitNumber(int32 Damage, FVector HitLocation);
 
-	UPROPERTY()
-		AActor* CombatTarget;
+	UFUNCTION(BlueprintCallable)
+	void StoreHitNumber(UUserWidget* HitNubmer, FVector Location);
+
+private:
 
 	UPROPERTY(EditAnywhere)
 	double PatrolRadius = 200.f;
@@ -100,6 +110,16 @@ private:
 	UPROPERTY(EditAnywhere)
 		TSubclassOf<class AWeapon> WeaponClass;
 
+	//맵에 타격 데미지를 적중 위치 저장
+	UPROPERTY(VisibleAnywhere, Category = Combat, meta = (AllowPrivateAccess = "true"))
+	TMap<UUserWidget*, FVector> HitNumbers;
+
+	UPROPERTY(VisibleAnywhere, Category = Combat, meta = (AllowPrivateAccess = "true"))
+	float HitNumberDestroyTime;
+
+	UPROPERTY(EditAnywhere, Category = "Behavior Tree", meta = (AllowPrivateAccess = "true"))
+		class UBehaviorTree* BehaviorTree;
+
 
 	/** AI behavior */
 	void InitializeEnemy();
@@ -135,4 +155,7 @@ private:
 
 	UPROPERTY(EditAnywhere, Category = Combat)
 		float ChasingSpeed = 300.f;
+
+	UPROPERTY(EditAnywhere, Category = Combat)
+		TSubclassOf<class ASoul> ExClass;
 };
