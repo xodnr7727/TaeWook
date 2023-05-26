@@ -10,6 +10,7 @@
 #include "ProjectNo1Character.generated.h"
 class AItem;
 class ASoul;
+class ATreasure;
 class USpringArmComponent;
 class UCameraComponent;
 class UAnimMontage;
@@ -31,6 +32,7 @@ public:
 	virtual void GetHit_Implementation(const FVector& ImpactPoint, AActor* Hitter) override;
 	virtual void SetOverlappingItem(AItem* Item) override;
 	virtual void AddEx(ASoul* Soul) override;
+	virtual void AddGold(ATreasure* Treasure) override;
 	/** Base turn rate, in deg/sec. Other scaling may affect final turn rate. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Input)
 		float TurnRateGamepad;
@@ -66,6 +68,7 @@ protected:
 	bool HasEnoughStamina();
 	bool IsOccupied();
 	virtual bool CanAttack() override;
+	virtual bool CanNeckSkill() override;
 	void Disarm();
 	void Arm();
 	void DisBlock();
@@ -97,6 +100,10 @@ protected:
 	UFUNCTION(BlueprintCallable)
 	void EndBlocking();
 
+	void OnNeckSkillPressed();
+
+	void EquipNeck(AWeapon* NewNeck);
+
 	/** 
 	 * Called via input to turn at a given rate. 
 	 * @param Rate	This is a normalized rate, i.e. 1.0 means 100% of desired turn rate
@@ -124,6 +131,7 @@ public:
 	FORCEINLINE class UCameraComponent* GetFollowCamera() const { return FollowCamera; }
 
 private:
+
 	    void InitializeSlashOverlay();
 	    bool IsUnoccupied();
 		void SetHUDHealth();

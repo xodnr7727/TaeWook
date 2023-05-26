@@ -66,6 +66,7 @@ void AWeapon::PlayEquipSound()
 	}
 }
 
+
 /*bool AWeapon::ActorIsSameType(AActor* OtherActor)
 {
 	return GetOwner()->ActorHasTag(TEXT("Enemy")) && OtherActor->ActorHasTag(TEXT("Enemy"));
@@ -116,7 +117,7 @@ void AWeapon::OnWeaponHit(AWeapon* OtherWeapon)
 	// 무기끼리 부딪혔을 때의 처리
 	// 이곳에서는 무기끼리의 충돌 효과음과 충돌 이펙트를 재생하거나,
 	// 무기의 체력을 감소시켜 부서지게 만들 수도 있습니다.
-	WeaponAState = EWeaponAState::EIS_Attaking;
+	/*WeaponAState = EWeaponAState::EIS_Attaking;
 
 	if (BlockSound)
 	{
@@ -133,7 +134,7 @@ void AWeapon::OnWeaponHit(AWeapon* OtherWeapon)
 				GetActorLocation()
 			);
 		}
-	}
+	}*/
 }
 
 bool AWeapon::CanShieldBlock()

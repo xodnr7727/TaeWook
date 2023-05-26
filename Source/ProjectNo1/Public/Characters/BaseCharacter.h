@@ -35,12 +35,18 @@ protected:
 	void DisableCapsule();
 
 	virtual bool CanAttack();
+	virtual bool CanNeckSkill();
 	bool IsAlive();
 	void PlayHitReactMontage(const FName& SectionName);
 	virtual int32 PlayAttackMontage();
 	virtual int32 PlayDeathMontage();
 	virtual void PlayDiveMontage();
+	virtual void PlayNeckSkillMontage();
 	void StopAttackMontage();
+
+	void SpawnEffect(const FVector& ImpactPoint);
+
+	FVector GetWeaponTraceEndLocation() const;
 
 	UFUNCTION(BlueprintCallable)
 		FVector GetTranslationWarpTarget();
@@ -49,19 +55,22 @@ protected:
 		FVector GetRotationWarpTarget();
 
 	UFUNCTION(BlueprintCallable)
-	virtual void AttackEnd();
+	virtual void AttackEnd(); 
 
 	UFUNCTION(BlueprintCallable)
-	virtual void BlockEnd();
+	virtual void BlockEnd(); 
 
 	UFUNCTION(BlueprintCallable)
-		virtual void DiveEnd();
+		virtual void DiveEnd(); 
 
 	UFUNCTION(BlueprintCallable)
 		void SetWeaponCollisionEnabled(ECollisionEnabled::Type CollisionEnabled);
 
 	UPROPERTY(VisibleAnywhere, Category = Weapon)
 		AWeapon* EquippedWeapon;
+
+	UPROPERTY(VisibleAnywhere, Category = Weapon)
+	    AWeapon* EquippedNeck;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
 		UAttributeComponent* Attributes;
@@ -77,6 +86,9 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, Category = Combat)
 		UAnimMontage* HitReactMontage;
+
+	UPROPERTY(EditDefaultsOnly, Category = Combat)
+		UAnimMontage* NeckSkillMontage;
 
 	UPROPERTY(EditDefaultsOnly, Category = Combat)
 		UAnimMontage* DeathMontage;
@@ -102,4 +114,7 @@ private:
 
 	UPROPERTY(EditAnywhere, Category = Combat)
 		UParticleSystem* HitParticles;
+
+	UPROPERTY(EditAnywhere, Category = Combat)
+		UParticleSystem* WeaponParticles;
 };

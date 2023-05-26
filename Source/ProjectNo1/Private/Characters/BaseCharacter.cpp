@@ -115,6 +115,30 @@ void ABaseCharacter::SpawnHitParticles(const FVector& ImpactPoint)
 		);
 	}
 }
+void ABaseCharacter::SpawnEffect(const FVector& ImpactPoint)
+{
+	if (WeaponParticles && GetWorld())
+	{
+		UGameplayStatics::SpawnEmitterAtLocation(
+			GetWorld(),
+			WeaponParticles,
+			ImpactPoint
+		);
+	}
+}
+FVector ABaseCharacter::GetWeaponTraceEndLocation() const
+{
+	// 궤적 길이 설정
+	float TraceLength = 1000.0f; 
+
+	// 무기 방향 벡터 계산
+	FVector WeaponForwardVector = GetActorForwardVector();
+
+	// 무기 궤적의 끝 위치 계산
+	FVector TraceEndLocation = GetActorLocation() + WeaponForwardVector * TraceLength;
+
+	return TraceEndLocation;
+}
 
 void ABaseCharacter::HandleDamage(float DamageAmount)
 {
@@ -158,6 +182,11 @@ void ABaseCharacter::PlayDiveMontage()
 	PlayMontageSection(DiveMontage, FName("Dive"));
 }
 
+void ABaseCharacter::PlayNeckSkillMontage()
+{
+	PlayMontageSection(NeckSkillMontage, FName("Skill"));
+}
+
 void ABaseCharacter::StopAttackMontage()
 {
 	UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
@@ -196,6 +225,11 @@ void ABaseCharacter::DisableCapsule()
 }
 
 bool ABaseCharacter::CanAttack()
+{
+	return false;
+}
+
+bool ABaseCharacter::CanNeckSkill()
 {
 	return false;
 }

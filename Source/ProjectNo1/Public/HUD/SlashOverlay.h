@@ -4,8 +4,8 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
+#include "Item.h"
 #include "SlashOverlay.generated.h"
-
 /**
  * 
  */

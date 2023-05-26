@@ -60,7 +60,9 @@ void ALichEnemy::Tick(float DeltaTime)
 	{
 		CheckPatrolTarget();
 	}
+
 }
+
 
 void ALichEnemy::CheckPatrolTarget()
 {

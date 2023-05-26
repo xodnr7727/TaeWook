@@ -29,12 +29,15 @@ void USlashOverlay::SetExperienceBarPercent(float Percent)
 	}
 }
 
+
 void USlashOverlay::SetGold(int32 Gold)
 {
 	if (GoldText)
 	{
-		const FString String = FString::Printf(TEXT("%d"), Gold);
-		const FText Text = FText::FromString(String);
+		const FString String = FString::Printf(TEXT("%'d"), Gold);
+		FNumberFormattingOptions FormatOptions;
+		FormatOptions.UseGrouping = true; //천 단위로 구분 출력
+		const FText Text = FText::AsNumber(Gold, &FormatOptions);
 		GoldText->SetText(Text);
 	}
 }

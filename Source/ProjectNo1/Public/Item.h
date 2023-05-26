@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "Item.generated.h"
+
 class UCapsuleComponent;
 class UNiagaraComponent;
 
@@ -12,6 +13,9 @@ enum class EItemState : uint8
 {
 	EIS_Hovering,
 	EIS_Equipped,
+	EIS_NeckEquipped,
+	EIS_Weapon,
+	EIS_Usingth,
 };
 enum class EWeaponAState : uint8
 {

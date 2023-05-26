@@ -17,3 +17,8 @@ void ASoul::OnCapsuleOverlap(UPrimitiveComponent* OverlappedComponent, AActor* O
 	Destroy();
 	}
 }
+
+void ASoul::Update(float DeltaTime)
+{
+	Position += Direction * Speed * DeltaTime;
+}

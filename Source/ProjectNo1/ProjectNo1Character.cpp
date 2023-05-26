@@ -20,6 +20,7 @@
 #include "HUD/MyProNo1HUD.h"
 #include "HUD/SlashOverlay.h"
 #include "Soul.h"
+#include "Items/Treasure.h"
 
 //////////////////////////////////////////////////////////////////////////
 // AProjectNo1Character
@@ -103,9 +104,19 @@ void AProjectNo1Character::SetOverlappingItem(AItem* Item)
 
 void AProjectNo1Character::AddEx(ASoul* Soul)
 {
+	if (Attributes && SlashOverlay)
 	{
 		Attributes->AddSouls(Soul->GetSouls());
 		SlashOverlay->SetExperienceBarPercent(Attributes->GetExperiencePercent());
+	}
+}
+
+void AProjectNo1Character::AddGold(ATreasure* Treasure)
+{
+	if (Attributes && SlashOverlay)
+	{
+		Attributes->AddGold(Treasure->GetGold());
+		SlashOverlay->SetGold(Attributes->GetGold());
 	}
 }
 
@@ -153,6 +164,23 @@ void AProjectNo1Character::SetupPlayerInputComponent(class UInputComponent* Play
 
 	PlayerInputComponent->BindAction(FName("Dive"), IE_Pressed, this, &AProjectNo1Character::Dive);
 
+	PlayerInputComponent->BindAction(FName("NeckSkill"), IE_Pressed, this, &AProjectNo1Character::OnNeckSkillPressed);
+
+
+}
+
+void AProjectNo1Character::OnNeckSkillPressed()
+{
+	if (CanNeckSkill())
+	{
+		PlayNeckSkillMontage();
+		ActionState = EActionState::EAS_NeckSkillDo;
+	}
+}
+
+void AProjectNo1Character::EquipNeck(AWeapon* NewNeck)
+{
+	EquippedNeck = NewNeck;
 }
 
 void AProjectNo1Character::Jump()
@@ -450,6 +478,12 @@ if (IsOccupied() || !HasEnoughStamina()) return;
 }
 
 bool AProjectNo1Character::CanAttack()
+{
+	return ActionState == EActionState::EAS_Unoccupied &&
+		CharacterState != ECharacterState::ECS_Unequipped;
+}
+
+bool AProjectNo1Character::CanNeckSkill()
 {
 	return ActionState == EActionState::EAS_Unoccupied &&
 		CharacterState != ECharacterState::ECS_Unequipped;

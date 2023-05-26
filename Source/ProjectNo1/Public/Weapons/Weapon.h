@@ -18,7 +18,7 @@ public:
 	void Equip(USceneComponent* InParent, FName InSocketName, AActor* NewOwner, APawn* NewInstigator);
 	void DeactivateEmbers();
 	void DisableCapsuleCollision();
-	void PlayEquipSound();
+	virtual void PlayEquipSound();
 	void AttachMeshToSocket(USceneComponent* InParent, const FName& InSocketName);
 
 	TArray<AActor*> IgnoreActors;

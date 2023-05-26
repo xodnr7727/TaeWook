@@ -19,11 +19,19 @@ protected:
 
 private:
 
-
 public:
+
+	void Update(float DeltaTime);
+
+	FVector Position;
+	FVector Direction;
+	float Speed;
+
 	UPROPERTY(EditAnywhere, Category = "Soul Properties")
 		int32 Souls;
 
+
 	FORCEINLINE int32 GetSouls() const { return Souls; }
 	FORCEINLINE void SetSouls(int32 NumberOfSouls) { Souls = NumberOfSouls; }
+
 };
