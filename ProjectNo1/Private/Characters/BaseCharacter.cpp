@@ -4,6 +4,7 @@
 #include "Weapons/Weapon.h"
 #include "Weapons/ProjectileWeapon.h"
 #include "Weapons/Shield.h"
+#include "Weapons/Potion.h"
 #include "ProjectNo1/LichEnemy.h"
 #include "Components/AttributeComponent.h"
 #include "Components/CapsuleComponent.h"
@@ -67,13 +68,12 @@ void ABaseCharacter::BallHit_Implementation(const FVector& ImpactPoint, AActor* 
 
 void ABaseCharacter::GetStun_Implementation(const FVector& ImpactPoint, AActor* Hitter) // 몬스터가 스턴되는 함수
 {
-	if (IsAlive() && IsStun() && Hitter)
+	if (IsAlive() && Hitter)
 	{
-		DirectionalHitStun(Hitter->GetActorLocation());
+		AttackReactParry();
 	}
 	else Die();
 
-	PlayHitSound(ImpactPoint);
 	PlayBlockSound(ImpactPoint);
 	SpawnHitParticles(ImpactPoint);
 }
@@ -229,6 +229,30 @@ void ABaseCharacter::SpawnArrowParticles(const FVector& ImpactPoint)
 	}
 }
 
+void ABaseCharacter::PlayWeaponSkillSound()
+{
+	if (WeaponSkillSound)
+	{
+		UGameplayStatics::PlaySoundAtLocation(
+			this,
+			WeaponSkillSound,
+			GetActorLocation()
+		);
+	}
+}
+
+void ABaseCharacter::PlayRushSkillSound()
+{
+	if (RushSkillSound)
+	{
+		UGameplayStatics::PlaySoundAtLocation(
+			this,
+			RushSkillSound,
+			GetActorLocation()
+		);
+	}
+}
+
 void ABaseCharacter::PlayBlockSound(const FVector& ImpactPoint)
 {
 	if (BlockSound)
@@ -336,7 +360,14 @@ int32 ABaseCharacter::PlayAttackMontage()
 
 int32 ABaseCharacter::PlayDeathMontage()
 {
-	return PlayRandomMontageSection(DeathMontage, DeathMontageSections);
+	const int32 Selection = PlayRandomMontageSection(DeathMontage, DeathMontageSections);
+	TEnumAsByte<EDeathPose> Pose(Selection);
+	if (Pose < EDeathPose::EDP_MAX)
+	{
+		DeathPose = Pose;
+	}
+
+	return Selection;
 }
 
 int32 ABaseCharacter::PlayStunMontage()
@@ -349,9 +380,34 @@ void ABaseCharacter::PlayDiveMontage()
 	PlayMontageSection(DiveMontage, FName("Dive"));
 }
 
+void ABaseCharacter::PlayDrinkMontage()
+{
+	PlayMontageSection(DrinkMontage, FName("Drink"));
+}
+
 void ABaseCharacter::PlayNeckSkillMontage()
 {
 	PlayMontageSection(NeckSkillMontage, FName("Skill"));
+}
+
+void ABaseCharacter::PlayWeaponSpellSkillMontage()
+{
+	PlayMontageSection(WeaponSpellSkillMontage, FName("WeaponSpellSkill"));
+}
+
+void ABaseCharacter::PlayLargeSkillMontage()
+{
+	PlayMontageSection(LargeSkillMontage, FName("LargeSkill"));
+}
+
+void ABaseCharacter::PlayGuardCounterMontage()
+{
+	PlayMontageSection(GuardCounterMontage, FName("GuardCounter"));
+}
+
+void ABaseCharacter::PlaySmallSkillMontage()
+{
+	PlayMontageSection(SmallSkillMontage, FName("SmallSkill"));
 }
 
 void ABaseCharacter::PlaySwordSkillMontage()
@@ -359,6 +415,15 @@ void ABaseCharacter::PlaySwordSkillMontage()
 	PlayMontageSection(SwordSkillMontage, FName("Skill"));
 }
 
+void ABaseCharacter::PlayLaserSkillMontage()
+{
+	PlayMontageSection(LaserSkillMontage, FName("LaserSkill"));
+}
+
+void ABaseCharacter::PlayRushSkillMontage()
+{
+	PlayMontageSection(RushSkillMontage, FName("RushSkill"));
+}
 
 void ABaseCharacter::StopAttackMontage()
 {
@@ -367,6 +432,11 @@ void ABaseCharacter::StopAttackMontage()
 	{
 		AnimInstance->Montage_Stop(0.25f, AttackMontage);
 	}
+}
+
+void ABaseCharacter::DisableMeshCollision()
+{
+	GetMesh()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 }
 
 FVector ABaseCharacter::GetTranslationWarpTarget()
@@ -402,6 +472,16 @@ bool ABaseCharacter::CanAttack()
 	return false;
 }
 
+bool ABaseCharacter::CanLaserAttack()
+{
+	return false;
+}
+
+bool ABaseCharacter::CanRushAttack()
+{
+	return false;
+}
+
 bool ABaseCharacter::CanNeckSkill()
 {
 	return false;
@@ -417,6 +497,11 @@ bool ABaseCharacter::IsStun()
 	return Attributes && Attributes->IsStun();
 }
 
+bool ABaseCharacter::IsAttacking()
+{
+	return LichEnemy && LichEnemy->IsEngaged();
+}
+
 bool ABaseCharacter::HasEnoughShieldStamina()
 {
 	return Attributes && Attributes->GetStamina() > Attributes->GetShieldCost();
@@ -430,6 +515,10 @@ void ABaseCharacter::BlockEnd()
 {
 }
 
+void ABaseCharacter::HitEnd()
+{
+}
+
 void ABaseCharacter::StunEnd()
 {
 }
@@ -439,6 +528,14 @@ void ABaseCharacter::StunStart()
 }
 
 void ABaseCharacter::DiveEnd()
+{
+}
+
+void ABaseCharacter::EndLaserSkill()
+{
+}
+
+void ABaseCharacter::EndRushSkill()
 {
 }
 
@@ -457,7 +554,40 @@ void ABaseCharacter::SetWeaponCollisionEnabled(ECollisionEnabled::Type Collision
 	}
 }
 
+void ABaseCharacter::SetSkillCollisionEnabled(ECollisionEnabled::Type CollisionEnabled)
+{
+	if (EquippedWeapon && EquippedWeapon->GetSkillBox())
+	{
+		EquippedWeapon->GetSkillBox()->SetCollisionEnabled(CollisionEnabled);
+		EquippedWeapon->IgnoreActors.Empty();
+	}
+}
 
+void ABaseCharacter::SetRushSkillCollisionEnabled(ECollisionEnabled::Type CollisionEnabled)
+{
+	if (EquippedWeapon && EquippedWeapon->GetRushSkillBox())
+	{
+		EquippedWeapon->GetRushSkillBox()->SetCollisionEnabled(CollisionEnabled);
+		EquippedWeapon->IgnoreActors.Empty();
+	}
+}
+
+void ABaseCharacter::SetClawSkillCollisionEnabled(ECollisionEnabled::Type CollisionEnabled)
+{
+	if (EquippedWeapon && EquippedWeapon->GetClawSkillBox())
+	{
+		EquippedWeapon->GetClawSkillBox()->SetCollisionEnabled(CollisionEnabled);
+		EquippedWeapon->IgnoreActors.Empty();
+	}
+}
+void ABaseCharacter::SetTeethSkillCollisionEnabled(ECollisionEnabled::Type CollisionEnabled)
+{
+	if (EquippedWeapon && EquippedWeapon->GetTeethSkillBox())
+	{
+		EquippedWeapon->GetTeethSkillBox()->SetCollisionEnabled(CollisionEnabled);
+		EquippedWeapon->IgnoreActors.Empty();
+	}
+}
 void ABaseCharacter::SetShieldCollisionEnabled(ECollisionEnabled::Type CollisionEnabled)
 {
 	if (EquippedShield && EquippedShield->GetShieldBox())
@@ -466,6 +596,15 @@ void ABaseCharacter::SetShieldCollisionEnabled(ECollisionEnabled::Type Collision
 		EquippedShield->IgnoreActors.Empty();
 	}
 }
+void ABaseCharacter::SetLeftCastSkillCollisionEnabled(ECollisionEnabled::Type CollisionEnabled)
+{
+	if (EquippedWeapon && EquippedWeapon->GetLeftCastSkillBox())
+	{
+		EquippedWeapon->GetLeftCastSkillBox()->SetCollisionEnabled(CollisionEnabled);
+		EquippedWeapon->IgnoreActors.Empty();
+	}
+}
+
 
 
 

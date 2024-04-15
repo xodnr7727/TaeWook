@@ -3,10 +3,13 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
 #include "Interfaces/HitInterface.h"
+#include "CharacterTypes.h"
 #include "BaseCharacter.generated.h"
 class AShield;
+class APotion;
 class AWeapon;
 class AProjectileWeapon;
+class AMySkillClass;
 class ATopArmor;
 class UAttributeComponent;
 class UAnimMontage;
@@ -49,10 +52,15 @@ protected:
 	void SpawnArrowParticles(const FVector& ImpactPoint);
 	void PlayBlockSound(const FVector& ImpactPoint);
 	void SpawnBlockParticles(const FVector& ImpactPoint);
+	void PlayWeaponSkillSound();
+
+	void PlayRushSkillSound();
 
 	void DisableCapsule();
 
 	virtual bool CanAttack();
+	virtual bool CanLaserAttack();
+	virtual bool CanRushAttack();
 	virtual bool CanNeckSkill();
 
 	UFUNCTION(BlueprintCallable)
@@ -60,6 +68,9 @@ protected:
 
 	UFUNCTION(BlueprintCallable)
 	bool IsStun();
+
+	bool IsAttacking();
+	void DisableMeshCollision();
 
 	bool HasEnoughShieldStamina();
 	void PlayHitReactMontage(const FName& SectionName);
@@ -69,8 +80,15 @@ protected:
 	virtual int32 PlayDeathMontage();
 	virtual int32 PlayStunMontage();
 	virtual void PlayDiveMontage();
+	virtual void PlayDrinkMontage();
 	virtual void PlayNeckSkillMontage();
+	virtual void PlayWeaponSpellSkillMontage();
+	virtual void PlayLargeSkillMontage();
+	virtual void PlayGuardCounterMontage();
+	virtual void PlaySmallSkillMontage();
 	virtual void PlaySwordSkillMontage();
+	virtual void PlayLaserSkillMontage();
+	virtual void PlayRushSkillMontage();
 	void StopAttackMontage();
 
 	void SpawnEffect(const FVector& ImpactPoint);
@@ -90,28 +108,55 @@ protected:
 	virtual void BlockEnd(); 
 
 	UFUNCTION(BlueprintCallable)
+	virtual void  HitEnd();
+
+	UFUNCTION(BlueprintCallable)
 	virtual void StunEnd();
 
 	UFUNCTION(BlueprintCallable)
 	virtual void StunStart();
 
 	UFUNCTION(BlueprintCallable)
-		virtual void DiveEnd(); 
+	virtual void DiveEnd(); 
+
+	UFUNCTION(BlueprintCallable)
+	virtual void EndLaserSkill();
+
+	UFUNCTION(BlueprintCallable)
+	virtual void EndRushSkill();
 
 	UFUNCTION(BlueprintCallable)
 		void SetWeaponCollisionEnabled(ECollisionEnabled::Type CollisionEnabled);
 
 	UFUNCTION(BlueprintCallable)
+		void SetSkillCollisionEnabled(ECollisionEnabled::Type CollisionEnabled);
+
+	UFUNCTION(BlueprintCallable)
+		void SetRushSkillCollisionEnabled(ECollisionEnabled::Type CollisionEnabled);
+
+	UFUNCTION(BlueprintCallable)
+		void SetClawSkillCollisionEnabled(ECollisionEnabled::Type CollisionEnabled);
+
+	UFUNCTION(BlueprintCallable)
+		void SetTeethSkillCollisionEnabled(ECollisionEnabled::Type CollisionEnabled);
+
+	UFUNCTION(BlueprintCallable)
 		void SetShieldCollisionEnabled(ECollisionEnabled::Type CollisionEnabled);
+
+	UFUNCTION(BlueprintCallable)
+		void SetLeftCastSkillCollisionEnabled(ECollisionEnabled::Type CollisionEnabled);
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = Weapon)
 		AWeapon* EquippedWeapon;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = Weapon)
-		AProjectileWeapon* Projectile;
+		AProjectileWeapon* EquippedProjectile;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = Shield)
 		AShield* EquippedShield;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = Potion)
+		APotion* EquippedPotion;
 
 	UPROPERTY(VisibleAnywhere, Category = Enemy)
 		ALichEnemy* LichEnemy;
@@ -119,17 +164,23 @@ protected:
 	UPROPERTY(VisibleAnywhere, Category = Weapon)
 	    AWeapon* EquippedNeck;
 
-		UPROPERTY(VisibleAnywhere, Category = Weapon)
+	UPROPERTY(VisibleAnywhere, Category = Weapon)
 		ATopArmor* EquippedArmor;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
 		UAttributeComponent* Attributes;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
+	    AMySkillClass* MySkillClass;
 
 	UPROPERTY(BlueprintReadOnly, Category = Combat)
 		AActor* CombatTarget;
 
 	UPROPERTY(EditAnywhere, Category = Combat)
 		double WarpTargetDistance = 75.f;
+
+	UPROPERTY(BlueprintReadOnly)
+		TEnumAsByte<EDeathPose> DeathPose;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Combat")
 		float MaxParryAngle = 100;
@@ -150,13 +201,34 @@ protected:
 		UAnimMontage* NeckSkillMontage;
 
 	UPROPERTY(EditDefaultsOnly, Category = Combat)
+		UAnimMontage* LargeSkillMontage;
+
+	UPROPERTY(EditDefaultsOnly, Category = Combat)
+		UAnimMontage* GuardCounterMontage;
+
+	UPROPERTY(EditDefaultsOnly, Category = Combat)
+		UAnimMontage* SmallSkillMontage;
+
+	UPROPERTY(EditDefaultsOnly, Category = Combat)
 		UAnimMontage* SwordSkillMontage;
+
+	UPROPERTY(EditDefaultsOnly, Category = Combat)
+		UAnimMontage* LaserSkillMontage;
+
+	UPROPERTY(EditDefaultsOnly, Category = Combat)
+		UAnimMontage* RushSkillMontage;
 
 	UPROPERTY(EditDefaultsOnly, Category = Combat)
 		UAnimMontage* DeathMontage;
 
 	UPROPERTY(EditDefaultsOnly, Category = Combat)
 		UAnimMontage* DiveMontage;
+
+	UPROPERTY(EditDefaultsOnly, Category = Combat)
+		UAnimMontage* DrinkMontage;
+
+	UPROPERTY(EditDefaultsOnly, Category = Combat)
+		UAnimMontage* WeaponSpellSkillMontage;
 
 	UPROPERTY(EditAnywhere, Category = Combat)
 		TArray<FName> AttackMontageSections;
@@ -166,9 +238,14 @@ protected:
 
 	UPROPERTY(EditAnywhere, Category = Combat)
 		TArray<FName> StunMontageSections;
+
+	UPROPERTY(EditAnywhere, Category = Combat)
+		TArray<FName> HitMontageSections;
 	/*
 	* Components
 	*/
+public:
+	FORCEINLINE TEnumAsByte<EDeathPose> GetDeathPose() const { return DeathPose; }
 
 private:
 	void PlayMontageSection(UAnimMontage* Montage, const FName& SectionName);
@@ -180,19 +257,26 @@ private:
 	UPROPERTY(EditAnywhere, Category = Combat)
 		UParticleSystem* HitParticles;
 
-		UPROPERTY(EditAnywhere, Category = Combat)
+	UPROPERTY(EditAnywhere, Category = Combat)
 		USoundBase* BlockSound;
 
-		UPROPERTY(EditAnywhere, Category = Combat)
+	UPROPERTY(EditAnywhere, Category = Combat)
 		UParticleSystem* BlockParticles;
 
 	UPROPERTY(EditAnywhere, Category = Combat)
 		UParticleSystem* WeaponParticles;
 
-		UPROPERTY(EditAnywhere, Category = Combat)
+	UPROPERTY(EditAnywhere, Category = Combat)
+		USoundBase* WeaponSkillSound;
+
+	UPROPERTY(EditAnywhere, Category = Combat)
+		USoundBase* RushSkillSound;
+
+	UPROPERTY(EditAnywhere, Category = Combat)
 		USoundBase* ArrowSound;
 
-		UPROPERTY(EditAnywhere, Category = Combat)
+	UPROPERTY(EditAnywhere, Category = Combat)
 		UParticleSystem* ArrowParticles;
+
 
 };

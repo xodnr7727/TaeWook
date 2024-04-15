@@ -4,17 +4,19 @@
 #include "LichEnemy.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "ProjectNo1/ProjectNo1Character.h"
 #include "GameFramework/Actor.h"
 #include "GameFramework/Controller.h"
 #include "Perception/PawnSensingComponent.h"
 #include "Components/AttributeComponent.h"
 #include "HUD/HealthBarComponent.h"
-#include "HUD/StunBarComponent.h"
 #include "Weapons/Weapon.h"
 #include "Weapons/EnemyWeapon.h"
 #include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetMathLibrary.h"
+#include "Engine/World.h"
 #include "AIController.h"
+#include "Weapons/Shield.h"
 #include "Soul.h"
 #include "Items/Treasure.h"
 #include "HUD/SlashOverlay.h"
@@ -23,15 +25,14 @@ ALichEnemy::ALichEnemy()
 {
 	PrimaryActorTick.bCanEverTick = true;
 
+	bAttack = true;
+
 	GetMesh()->SetCollisionResponseToChannel(ECollisionChannel::ECC_Visibility, ECollisionResponse::ECR_Block);
 	GetMesh()->SetCollisionResponseToChannel(ECollisionChannel::ECC_Camera, ECollisionResponse::ECR_Ignore);
 	GetMesh()->SetGenerateOverlapEvents(true);
 
 	HealthBarWidget = CreateDefaultSubobject<UHealthBarComponent>(TEXT("HealthBar"));
 	HealthBarWidget->SetupAttachment(GetRootComponent());
-
-	StunBarWidget = CreateDefaultSubobject<UStunBarComponent>(TEXT("StunBar"));
-	StunBarWidget->SetupAttachment(GetRootComponent());
 
 	GetCharacterMovement()->bOrientRotationToMovement = true;
 	bUseControllerRotationPitch = false;
@@ -42,6 +43,7 @@ ALichEnemy::ALichEnemy()
 	PawnSensing->SightRadius = 4000.f;
 	PawnSensing->SetPeripheralVisionAngle(45.f);
 	HitNumberDestroyTime = 1.5f;
+	LeftCastSkillCount = 0.1f;
 
 	static ConstructorHelpers::FClassFinder<AProjectileWeapon> ProjectileAsset(TEXT("Blueprint'/Game/ThirdPerson/Blueprints/Enemy/Weapon/EnemyProjectileWeapon'"));
 
@@ -130,58 +132,75 @@ void ALichEnemy::CheckCombatTarget()
 
 void ALichEnemy::GetHit_Implementation(const FVector& ImpactPoint, AActor* Hitter)//타격 받는 함수
 {
-	if (IsEngaged()) return;
+	if (IsEngaged() && IsHitOnShield(Hitter)) return;
 
 	Super::GetHit_Implementation(ImpactPoint, Hitter);
 	if (!IsDead()) {
 		ShowHealthBar();
-		ShowStunBar();
 	}
 	ClearPatrolTimer();
 	ClearAttackTimer();
 	SetWeaponCollisionEnabled(ECollisionEnabled::NoCollision);
+	EquippedWeapon->DeactivateLeftCastSkillEffect(); // 주문검 공격 이펙트 비활성화
+	GetCharacterMovement()->Activate();
 	EnemyState = EEnemyState::EES_Attacking;
+	bAttack = true;
 	StopAttackMontage();
+
+	if (IsInsideAttackRadius())
+	{
+		if (!IsDead()) StartAttackTimer();
+	}
 }
 
-void ALichEnemy::BallHit_Implementation(const FVector& ImpactPoint, AActor* Hitter)
+void ALichEnemy::GetStun_Implementation(const FVector& ImpactPoint, AActor* Hitter)//맞는 함수
+{
+	float AngleToMonster = CalculateAngleBetweenPlayerAndMonster(this, Hitter);
+	if (!(IsEngaged() && AngleToMonster <= MaxParryAngle)) return;
+	Super::GetStun_Implementation(ImpactPoint, Hitter);
+	if (!IsDead()) {
+		ShowHealthBar();
+	}
+	ClearPatrolTimer();
+	ClearAttackTimer();
+	SetWeaponCollisionEnabled(ECollisionEnabled::NoCollision);
+	EquippedWeapon->DeactivateLeftCastSkillEffect(); // 주문검 공격 이펙트 비활성화
+	EnemyState = EEnemyState::EES_Stunned;
+	StopAttackMontage();
+
+	if (IsInsideAttackRadius())
+	{
+		if (!IsDead()) StartAttackTimer();
+	}
+}
+
+void ALichEnemy::BallHit_Implementation(const FVector& ImpactPoint, AActor* Hitter)//맞는 함수
 {
 	if (IsEngaged()) return;
-
 	Super::BallHit_Implementation(ImpactPoint, Hitter);
 	if (!IsDead()) {
 		ShowHealthBar();
-		ShowStunBar();
 	}
-
 	ClearPatrolTimer();
 	ClearAttackTimer();
 	SetWeaponCollisionEnabled(ECollisionEnabled::NoCollision);
 	EnemyState = EEnemyState::EES_Attacking;
 	StopAttackMontage();
-}
-
-void ALichEnemy::GetStun_Implementation(const FVector& ImpactPoint, AActor* Hitter)//막는 함수
-{
-	if (!IsEngaged()) return;
-
-	Super::GetStun_Implementation(ImpactPoint, Hitter);
-	if (!IsDead()) ShowHealthBar();
-
-	ClearPatrolTimer();
-	ClearAttackTimer();
-	SetWeaponCollisionEnabled(ECollisionEnabled::NoCollision);
-	EnemyState = EEnemyState::EES_Stunned;
-	StopAttackMontage();
-}
-
-void ALichEnemy::RecoveryStunState() {
-	if (Attributes && StunBarWidget)
+	UE_LOG(LogTemp, Log, TEXT("BallHit_Implementation"));
+	if (IsInsideAttackRadius())
 	{
-		Attributes->RecoveryStun();
-		StunBarWidget->SetStunPercent(Attributes->GetStunPercent());
+		if (!IsDead()) StartAttackTimer();
 	}
 }
+
+bool ALichEnemy::IsHitOnShield(AActor* Hitter)
+{
+	// 여기에 방패에 맞았는지 여부를 확인하는 코드를 추가
+	// 방패에 맞았다면 true를 반환하고, 그렇지 않다면 false를 반환
+	// 예: Hitter이 방패 클래스에 속하는지 여부를 확인하는 코드
+	return Hitter && Hitter->IsA(AShield::StaticClass());
+}
+
 
 void ALichEnemy::SpawnDefaultWeapon()
 {
@@ -194,13 +213,24 @@ void ALichEnemy::SpawnDefaultWeapon()
 	}
 }
 
+void ALichEnemy::SpawnDefaultWeaponTwo()
+{
+	UWorld* World = GetWorld();
+	if (World && WeaponClass)
+	{
+		AWeapon* DefaultWeapon = World->SpawnActor<AWeapon>(WeaponClass);
+		DefaultWeapon->Equip(GetMesh(), FName("LeftCastWeapon"), this, this);
+		EquippedWeapon = DefaultWeapon;
+	}
+}
+
 void ALichEnemy::Die()
 {
+	Super::Die();
+
 	EnemyState = EEnemyState::EES_Dead;
-	PlayDeathMontage();
 	ClearAttackTimer();
 	HideHealthBar();
-	HideStunBar();
 	DisableCapsule();
 	SetLifeSpan(DeathLifeSpan);
 	GetCharacterMovement()->bOrientRotationToMovement = false;
@@ -210,13 +240,6 @@ void ALichEnemy::Die()
 	SpawnGd();
 }
 
-void ALichEnemy::Stun()
-{
-	EnemyState = EEnemyState::EES_Stunned;
-	PlayStunMontage();
-	ClearAttackTimer();
-	SetWeaponCollisionEnabled(ECollisionEnabled::NoCollision);
-}
 
 void ALichEnemy::SpawnEx()
 {
@@ -361,11 +384,27 @@ AActor* ALichEnemy::ChoosePatrolTarget()
 	return nullptr;
 }
 
+void ALichEnemy::DeactivateLeftCastEffect()
+{
+	UE_LOG(LogTemp, Log, TEXT("DeactivateLeftCastEffect"));
+	EquippedWeapon->DeactivateLeftCastSkillEffect(); // 주문검 공격 이펙트 비활성화
+}
+
+
+void ALichEnemy::ActivateLeftCastEffect()
+{
+	FTimerHandle LeftCastSkillCountdown;
+
+	EquippedWeapon->ActivateLeftCastSkillEffect(); // 주문검  공격 이펙트 활성화
+	GetWorldTimerManager().SetTimer(LeftCastSkillCountdown, this, &ALichEnemy::DeactivateLeftCastEffect, LeftCastSkillCount, false); // 쿨타임 타이머 시작
+}
+
 void ALichEnemy::Attack()
 {
 	Super::Attack();
 	if (CombatTarget == nullptr) return;
-
+	if (bAttack == false) return;
+	GetCharacterMovement()->Deactivate();
 	EnemyState = EEnemyState::EES_Engaged;
 	PlayAttackMontage();
 }
@@ -384,19 +423,30 @@ bool ALichEnemy::CanAttack()
 void ALichEnemy::AttackEnd()
 {
 	EnemyState = EEnemyState::EES_NoState;
+	GetCharacterMovement()->Activate();
 	CheckCombatTarget();
+	bAttack = true;
+}
+
+void ALichEnemy::HitEnd()
+{
+	EnemyState = EEnemyState::EES_Attacking;
+	GetCharacterMovement()->Activate();//이동 허용
+	bAttack = true;
 }
 
 void ALichEnemy::StunEnd()
 {
 	EnemyState = EEnemyState::EES_NoState;
-	RecoveryStunState();
+	GetCharacterMovement()->Activate();//이동 허용
+	bAttack = true;	// 공격 가능 상태로 전환
 }
 
 void ALichEnemy::StunStart()
 {
 	EnemyState = EEnemyState::EES_Stunned;
-	CombatTarget = nullptr;
+	GetCharacterMovement()->Deactivate(); //이동 억제
+	bAttack = false; 	// 공격 불가능 상태로 전환
 }
 
 void ALichEnemy::HandleDamage(float DamageAmount)
@@ -407,21 +457,6 @@ void ALichEnemy::HandleDamage(float DamageAmount)
 	{
 		HealthBarWidget->SetHealthPercent(Attributes->GetHealthPercent());
 	}
-	if (Attributes && StunBarWidget)
-	{
-		StunBarWidget->SetStunPercent(Attributes->GetStunPercent());
-	}
-}
-
-int32 ALichEnemy::PlayDeathMontage()
-{
-	const int32 Selection = Super::PlayDeathMontage();
-	TEnumAsByte<EDeathPose> Pose(Selection);
-	if (Pose < EDeathPose::EDP_MAX)
-	{
-		DeathPose = Pose;
-	}
-	return Selection;
 }
 
 void ALichEnemy::InitializeEnemy()
@@ -429,8 +464,8 @@ void ALichEnemy::InitializeEnemy()
 	EnemyController = Cast<AAIController>(GetController());
 	MoveToTarget(PatrolTarget);
 	HideHealthBar();
-	HideStunBar();
 	SpawnDefaultWeapon();
+	SpawnDefaultWeaponTwo();
 }
 
 void ALichEnemy::HideHealthBar()
@@ -448,26 +483,11 @@ void ALichEnemy::ShowHealthBar()
 		HealthBarWidget->SetVisibility(true);
 	}
 }
-void ALichEnemy::HideStunBar()
-{
-	if (StunBarWidget)
-	{
-		StunBarWidget->SetVisibility(false);
-	}
-}
 
-void ALichEnemy::ShowStunBar()
-{
-	if (StunBarWidget)
-	{
-		StunBarWidget->SetVisibility(true);
-	}
-}
 void ALichEnemy::LoseInterest()
 {
 	CombatTarget = nullptr;
 	HideHealthBar();
-	HideStunBar();
 }
 
 void ALichEnemy::StartPatrolling()
@@ -483,6 +503,16 @@ void ALichEnemy::ChaseTarget()
 	GetCharacterMovement()->MaxWalkSpeed = ChasingSpeed;
 	MoveToTarget(CombatTarget);
 }
+
+
+void ALichEnemy::CombatTargetPlayer()
+{
+	EnemyState = EEnemyState::EES_Chasing;
+	UE_LOG(LogTemp, Log, TEXT("PlayerCombat"));
+	GetCharacterMovement()->MaxWalkSpeed = ChasingSpeed;
+	MoveToTarget(ProjectNo1Character);
+}
+
 
 bool ALichEnemy::IsOutsideCombatRadius()
 {
@@ -519,14 +549,19 @@ bool ALichEnemy::Alive()
 	return Attributes && Attributes->IsAlive();
 }
 
+bool ALichEnemy::IsEngaged()
+{
+	return EnemyState == EEnemyState::EES_Engaged;
+}
+
 bool ALichEnemy::IsStunned()
 {
 	return EnemyState == EEnemyState::EES_Stunned;
 }
 
-bool ALichEnemy::IsEngaged()
+bool ALichEnemy::IsNotStunned()
 {
-	return EnemyState == EEnemyState::EES_Engaged;
+	return EnemyState != EEnemyState::EES_Stunned;
 }
 
 void ALichEnemy::ClearPatrolTimer()

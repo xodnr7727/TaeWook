@@ -14,6 +14,7 @@
 #include "Goblin.generated.h"
 class UHealthBarComponent;
 class UPawnSensingComponent;
+class AProjectNo1Character;
 UCLASS()
 class PROJECTNO1_API AGoblin : public ABaseCharacter
 {
@@ -37,7 +38,6 @@ protected:
 	virtual void Attack() override;
 	virtual bool CanAttack() override;
 	virtual void HandleDamage(float DamageAmount) override;
-	virtual int32 PlayDeathMontage() override;
 	virtual void AttackEnd() override;
 
 	UFUNCTION()
@@ -50,9 +50,6 @@ protected:
 
 	UFUNCTION()
 	void PawnSeen(APawn* SeenPawn);
-
-	UPROPERTY(BlueprintReadOnly)
-	TEnumAsByte<EDeathPose> DeathPose;
 
 	UPROPERTY(BlueprintReadOnly)
 	EEnemyState EnemyState = EEnemyState::EES_Patrolling;
@@ -82,7 +79,11 @@ public:
 	void StoreHitNumber(UUserWidget* HitNubmer, FVector Location);
 
 	void ProjectileAttack();
+	void InitializeEnemy();
+	void ShowHealthBar();
+	void CombatTargetPlayer();
 
+	FORCEINLINE EEnemyState GetEnemyState() const { return EnemyState; }
 private:
 
 	UPROPERTY(EditAnywhere)
@@ -145,9 +146,7 @@ private:
 
 
 	/** AI behavior */
-	void InitializeEnemy();
 	void HideHealthBar();
-	void ShowHealthBar();
 	void LoseInterest();
 	void StartPatrolling();
 	void ChaseTarget();
@@ -188,5 +187,8 @@ private:
 
 	UPROPERTY(EditAnywhere, Category = Combat)
 	TSubclassOf<class ATreasure> GdClass;
+
+	UPROPERTY(VisibleAnywhere, Category = Player)
+	AProjectNo1Character* ProjectNo1Character;
 
 };

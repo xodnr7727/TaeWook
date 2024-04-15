@@ -29,7 +29,14 @@ enum class EActionState : uint8
 	EAS_SwordSkillDo UMETA(DisplayName = "SwordSkillDo"),
 	EAS_EquippingWeapon UMETA(DisplayName = "Equipping Weapon"),
 	EAS_Dive UMETA(DisplayName = "Dive"),
-	EAS_Parrying UMETA(DisplayName = "Parrying")
+	EAS_Parrying UMETA(DisplayName = "Parrying"),
+	EAS_Drink UMETA(DisplayName = "Drink"),
+	EAS_Sprint UMETA(DisplayName = "Sprint"),
+	EAS_AttackSkill UMETA(DisplayName = "AttackSkill"),
+	EAS_LargeAttack UMETA(DisplayName = "LargeAttack"),
+	EAS_LevelUp UMETA(DisplayName = "LevelUp"),
+	EAS_WeaponSpell UMETA(DisplayName = "WeaponSpell"),
+	EAS_Dead UMETA(DisplayName = "Dead")
 };
 
 UENUM(BlueprintType)
@@ -37,6 +44,9 @@ enum EDeathPose
 {
 	EDP_Alive UMETA(DisplayName = "Alive"),
 	EDP_Death UMETA(DisplayName = "Death"),
+	EDP_Death1 UMETA(DisplayName = "Death1"),
+	EDP_Death2 UMETA(DisplayName = "Death2"),
+	EDP_Death3 UMETA(DisplayName = "Death3"),
 
 	EDP_MAX UMETA(DisplayName = "DefaultMAX")
 };
@@ -51,8 +61,8 @@ enum class EEnemyState : uint8
 	EES_Chasing UMETA(DisplayName = "Chasing"),
 	EES_Attacking UMETA(DisplayName = "Attacking"),
 	EES_Engaged UMETA(DisplayName = "Engaged"),
-	EES_Stunned UMETA(DisplayName = "Stunned")
-
+	EES_Stunned UMETA(DisplayName = "Stunned"),
+	EES_Blocking UMETA(DisplayName = "Blocking")
 };
 
 UENUM(BlueprintType)

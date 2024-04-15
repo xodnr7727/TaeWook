@@ -3,16 +3,16 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Item.h"
+#include "Characters/BaseCharacter.h"
 #include "GameFramework/Actor.h"
-#include "Interfaces/HitInterface.h"
+#include "Components/SphereComponent.h"
+#include "GameFramework/ProjectileMovementComponent.h"
 #include "ProjectileWeapon.generated.h"
-
-class USphereComponent;
-class UStaticMeshComponent;
-class UParticleSystemComponent;
 class UProjectileMovementComponent;
+class USphereComponent;
 UCLASS()
-class PROJECTNO1_API AProjectileWeapon : public AActor
+class PROJECTNO1_API AProjectileWeapon : public AItem
 {
 	GENERATED_BODY()
 	
@@ -20,41 +20,57 @@ public:
 	// Sets default values for this actor's properties
 	AProjectileWeapon();
 
+	void ThrowInDirection(const FVector& ShootDirection);
+
+	void ProjectileEquip(USceneComponent* InParent, AActor* NewOwner, APawn* NewInstigator);
+
 	virtual void Tick(float DeltaTime) override;
-
-	void LaunchFireball(const FVector& FireballDirection);
-
-	void ExecuteGetHit(FHitResult& BoxHit);
 
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
 
-	UPROPERTY(Category = Mesh, VisibleAnywhere, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
-	UStaticMeshComponent* Mesh;
+	void ExecuteBallHit(FHitResult& BoxHit);
 
-	UPROPERTY(Category = Particle, VisibleAnywhere, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
-	UParticleSystemComponent* Particle;
-
-	UPROPERTY(Category = Projectile, VisibleAnywhere, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
-	UProjectileMovementComponent* Movement;
-
-	UPROPERTY(Category = Sphere, VisibleAnywhere, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
-	USphereComponent* SphereComponent;
-
-	UPROPERTY(EditAnywhere, Category = "Fireball")
-	float FireballSpeed;
-
-	UFUNCTION(BlueprintImplementableEvent)
-	void CreateFields(const FVector& FieldLocation);
-
-
-public:
-	UFUNCTION()
-	void OnHit(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit);
+	void DisableCapsuleCollision();
 
 private:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Combat, meta = (AllowPrivateAccess = "true"))
 	float Damage;
 
+	UPROPERTY(EditAnywhere, Category = "Skill Properties")
+	class USoundBase* HitSound;
+
+	UPROPERTY(EditAnywhere, Category = "Skill Properties")
+	class UParticleSystem* HitParticles;
+
+public:
+	UPROPERTY(VisibleAnywhere, Category = "State")
+	float MyInitialSpeed;
+
+	UPROPERTY(VisibleAnywhere, Category = "State")
+	float MyMaxSpeed;
+
+	UPROPERTY(VisibleAnywhere, Category = "Components")
+	USphereComponent* CollisionComponent;
+
+	UPROPERTY(VisibleAnywhere, Category = "Components")
+	class UStaticMeshComponent* SwordMesh;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	class UParticleSystemComponent* ImpactEffect;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	UProjectileMovementComponent* ProjectileMovement;
+
+	UFUNCTION()
+	void OnBoxOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
+
+	// 몬스터에게 타격을 입히는 함수 선언
+	UFUNCTION()
+	void OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit);
+
+	FORCEINLINE class USphereComponent* GetProjectileCollison() const { return CollisionComponent; }
+
+	FORCEINLINE class UProjectileMovementComponent* GetProjectileMovement() const { return ProjectileMovement; }
 };

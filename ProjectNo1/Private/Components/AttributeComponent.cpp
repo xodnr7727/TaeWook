@@ -3,6 +3,12 @@
 
 #include "Components/AttributeComponent.h"
 #include "Soul.h"
+#include "ProjectNo1/ProjectNo1Character.h"
+#include "Kismet/GameplayStatics.h"
+#include "Particles/ParticleSystemComponent.h"
+#include "Components/CapsuleComponent.h"
+#include "Engine/World.h"
+#include "GameFramework/Actor.h"
 
 UAttributeComponent::UAttributeComponent()
 {
@@ -13,7 +19,6 @@ UAttributeComponent::UAttributeComponent()
 void UAttributeComponent::BeginPlay()
 {
 	Super::BeginPlay();
-	
 }
 
 void UAttributeComponent::ReceiveDamage(float Damage)
@@ -61,6 +66,11 @@ bool UAttributeComponent::IsAlive()
 	return Health > 0.f;
 }
 
+bool UAttributeComponent::IsCanLaserSkill()
+{
+	return Health < 0.51f;
+}
+
 bool UAttributeComponent::IsStun()
 {
 	return Stun < 0.1f;
@@ -68,8 +78,25 @@ bool UAttributeComponent::IsStun()
 
 void UAttributeComponent::RecoveryStun()
 {
-	Stun += StunRegenRate * GetWorld()->GetDeltaSeconds();
-	Stun = FMath::Min(Stun, MaxStun);
+	Stun += MaxStun;
+}
+
+void UAttributeComponent::RecoveryHealth()
+{
+	HealthRegenRate = 12.f;
+	/*float RestoreAmount = MaxHealth * 0.3f;
+
+	Health += RestoreAmount;
+
+	if (Health > MaxHealth)
+	{
+		Health = MaxHealth;
+	}*/
+}
+
+void UAttributeComponent::BaseHealth()
+{
+	HealthRegenRate = 2.f;
 }
 
 void UAttributeComponent::RegenStamina(float DeltaTime)
@@ -96,6 +123,46 @@ void UAttributeComponent::AddSouls(int32 NumberOfSouls)
 {
 	Souls += NumberOfSouls;
 	Experience = FMath::Clamp(Experience + Souls, 0.f, MaxExperience);
+	if (Experience >= MaxExperience) { //레벨 업
+		Experience = 0.0f;
+		Level += 1;
+		MaxHealth += 10;
+		MaxExperience += 50;
+		MaxStamina += 10;
+		HealthRegenRate += 1;
+		StaminaRegenRate += 2;
+		Health += MaxHealth; //체력 회복
+		Stamina += MaxStamina; //스태미너 회복
+		//최대 체력, 경험치, 스태미너 증가 추가 and 리젠량.
+		AProjectNo1Character* ProjectNo1Character = Cast<AProjectNo1Character>(GetOwner());
+		if (ProjectNo1Character)
+		{
+			FVector SpawnLocation = ProjectNo1Character->GetActorLocation() - FVector(0.0f, 0.0f, ProjectNo1Character->GetCapsuleComponent()->GetScaledCapsuleHalfHeight());
+			if (LevelUpParticle && GetWorld()) {
+				UGameplayStatics::SpawnEmitterAtLocation(
+					GetWorld(),
+					LevelUpParticle,
+					SpawnLocation
+				); 
+			}
+			if (LevelUpSound){
+				UGameplayStatics::PlaySoundAtLocation(
+					this,
+					LevelUpSound,
+					ProjectNo1Character->GetActorLocation()
+				);
+			}//레벨업 이펙트, 사운드
+			ProjectNo1Character->LevelUpAll();
+		}
+	}
+}
+
+void UAttributeComponent::AddLevel(int32 AmountOfLevel)
+{
+	if (Experience >= MaxExperience) {
+		Experience = 0.0f;
+		Level += 1;
+	}
 }
 
 

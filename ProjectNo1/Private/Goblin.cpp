@@ -4,6 +4,7 @@
 #include "Goblin.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/PlayerController.h"
+#include "ProjectNo1/ProjectNo1Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Perception/PawnSensingComponent.h"
 #include "Components/AttributeComponent.h"
@@ -77,6 +78,7 @@ void AGoblin::Tick(float DeltaTime)
 	{
 		CheckPatrolTarget();
 	}
+	/*
 	if (PlayerCharacter)
 	{
 		// 플레이어와의 거리 계산
@@ -94,7 +96,7 @@ void AGoblin::Tick(float DeltaTime)
 
 			// 공격 로직을 여기에 추가 (예: 타이머를 사용하여 주기적으로 공격)
 		}
-	}
+	}*/
 }
 
 
@@ -131,13 +133,22 @@ void AGoblin::CheckCombatTarget()
 
 void AGoblin::GetHit_Implementation(const FVector& ImpactPoint, AActor* Hitter)//타격 받는 함수
 {
+	if (IsEngaged()) return;
+
 	Super::GetHit_Implementation(ImpactPoint, Hitter);
 	if (!IsDead()) ShowHealthBar();
+
 	ClearPatrolTimer();
 	ClearAttackTimer();
 	SetWeaponCollisionEnabled(ECollisionEnabled::NoCollision);
-
+	GetCharacterMovement()->Activate();
+	EnemyState = EEnemyState::EES_Attacking;
 	StopAttackMontage();
+
+	if (IsInsideAttackRadius())
+	{
+		if (!IsDead()) StartAttackTimer();
+	}
 }
 
 void AGoblin::SpawnDefaultWeapon()
@@ -174,8 +185,8 @@ void AGoblin::SpawnDefaultAmor()
 
 void AGoblin::Die()
 {
+	Super::Die();
 	EnemyState = EEnemyState::EES_Dead;
-	PlayDeathMontage();
 	ClearAttackTimer();
 	HideHealthBar();
 	DisableCapsule();
@@ -337,7 +348,7 @@ void AGoblin::Attack()
 {
 	Super::Attack();
 	if (CombatTarget == nullptr) return;
-
+	GetCharacterMovement()->Deactivate();
 	EnemyState = EEnemyState::EES_Engaged;
 	PlayAttackMontage();
 }
@@ -355,6 +366,7 @@ bool AGoblin::CanAttack()
 void AGoblin::AttackEnd()
 {
 	EnemyState = EEnemyState::EES_NoState;
+	GetCharacterMovement()->Activate();
 	CheckCombatTarget();
 }
 
@@ -366,18 +378,6 @@ void AGoblin::HandleDamage(float DamageAmount)
 	{
 		HealthBarWidget->SetHealthPercent(Attributes->GetHealthPercent());
 	}
-}
-
-int32 AGoblin::PlayDeathMontage()
-{
-	const int32 Selection = Super::PlayDeathMontage();
-	TEnumAsByte<EDeathPose> Pose(Selection);
-	if (Pose < EDeathPose::EDP_MAX)
-	{
-		DeathPose = Pose;
-	}
-
-	return Selection;
 }
 
 void AGoblin::InitializeEnemy()
@@ -423,6 +423,14 @@ void AGoblin::ChaseTarget()
 	EnemyState = EEnemyState::EES_Chasing;
 	GetCharacterMovement()->MaxWalkSpeed = ChasingSpeed;
 	MoveToTarget(CombatTarget);
+}
+
+void AGoblin::CombatTargetPlayer()
+{
+	EnemyState = EEnemyState::EES_Chasing;
+	UE_LOG(LogTemp, Log, TEXT("PlayerCombat"));
+	GetCharacterMovement()->MaxWalkSpeed = ChasingSpeed;
+	MoveToTarget(ProjectNo1Character);
 }
 
 bool AGoblin::IsOutsideCombatRadius()

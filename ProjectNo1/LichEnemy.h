@@ -13,8 +13,8 @@
 #include "Weapons/ProjectileWeapon.h"
 #include "LichEnemy.generated.h"
 class UHealthBarComponent;
-class UStunBarComponent;
 class UPawnSensingComponent;
+class AProjectNo1Character;
 UCLASS()
 class PROJECTNO1_API ALichEnemy : public ABaseCharacter
 {
@@ -30,20 +30,24 @@ protected:
 
 	/** <ABaseCharacter> */
 	virtual void Die() override;
-	void SpawnEx();
-	void SpawnGd();
+	void SpawnEx();//경험치 드랍
+	void SpawnGd();//골드 드랍
 	bool InTargetRange(AActor* Target, double Radius);
 	void MoveToTarget(AActor* Target);
 	AActor* ChoosePatrolTarget();
 	virtual void Attack() override;
 	virtual bool CanAttack() override;
 	virtual void HandleDamage(float DamageAmount) override;
-	virtual int32 PlayDeathMontage() override;
 	virtual void AttackEnd() override;
+	virtual void HitEnd() override;
 	virtual void StunEnd() override;
 	virtual void StunStart() override;
 
-	void RecoveryStunState();
+	UFUNCTION(BlueprintCallable)
+	void DeactivateLeftCastEffect();
+
+	UFUNCTION(BlueprintCallable)
+	void ActivateLeftCastEffect();
 
 	UFUNCTION()
 	void DestroyHitNumber(UUserWidget* HitNumber);
@@ -55,9 +59,6 @@ protected:
 
 	UFUNCTION()
 		void PawnSeen(APawn* SeenPawn);
-
-	UPROPERTY(BlueprintReadOnly)
-		TEnumAsByte<EDeathPose> DeathPose;
 
 	UPROPERTY(BlueprintReadOnly)
 		EEnemyState EnemyState = EEnemyState::EES_Patrolling;
@@ -75,10 +76,10 @@ public:
 	void CheckCombatTarget();
 
 
-	virtual void GetHit_Implementation(const FVector& ImpactPoint, AActor* Hitter) override;
+	virtual void GetHit_Implementation(const FVector& ImpactPoint, AActor* Hitter) override;//히트 함수
+	virtual void GetStun_Implementation(const FVector& ImpactPoint, AActor* Hitter) override;//스턴 함수
 	virtual void BallHit_Implementation(const FVector& ImpactPoint, AActor* Hitter) override;
-	virtual void GetStun_Implementation(const FVector& ImpactPoint, AActor* Hitter) override;
-
+	bool IsHitOnShield(AActor* Hitter);
 	virtual float TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent, class AController* EventInstigator, AActor* DamageCauser) override;
 	
 	virtual void Destroyed() override;
@@ -89,8 +90,13 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void StoreHitNumber(UUserWidget* HitNubmer, FVector Location);
 	bool Alive();
-	void Stun();
+	bool IsStunned();//스턴됨
+	bool IsNotStunned();//스턴풀림
+	bool IsEngaged();//전투중
 	void ProjectileAttack();
+	void InitializeEnemy();
+	void ShowHealthBar();
+	void CombatTargetPlayer();
 
 	FORCEINLINE EEnemyState GetEnemyState() const { return EnemyState; }
 
@@ -132,8 +138,6 @@ private:
 	UPROPERTY(VisibleAnywhere)
 		UHealthBarComponent* HealthBarWidget;
 
-	UPROPERTY(VisibleAnywhere)
-		UStunBarComponent* StunBarWidget;
 
 	UPROPERTY(VisibleAnywhere)
 		UPawnSensingComponent* PawnSensing;
@@ -153,24 +157,20 @@ private:
 
 
 	/** AI behavior */
-	void InitializeEnemy();
+
 	void HideHealthBar();
-	void ShowHealthBar();
-	void HideStunBar();
-	void ShowStunBar();
-	void LoseInterest();
+	void LoseInterest();//추적 X
 	void StartPatrolling();
 	void ChaseTarget();
 	bool IsOutsideCombatRadius();
-	bool IsOutsideAttackRadius();
-	bool IsInsideAttackRadius();
-	bool IsChasing();
-	bool IsAttacking();
-	bool IsDead();
-	bool IsStunned();
-	bool IsEngaged();
+	bool IsOutsideAttackRadius();//공격 사정거리 밖
+	bool IsInsideAttackRadius();//공격 사정거리 안
+	bool IsChasing();//쫓는중
+	bool IsAttacking();//히트됨
+	bool IsDead();//죽음
 	void ClearPatrolTimer();
 	void SpawnDefaultWeapon();
+	void SpawnDefaultWeaponTwo();
 
 	/** Combat */
 	void StartAttackTimer();
@@ -193,7 +193,16 @@ private:
 	UPROPERTY(EditAnywhere, Category = Combat)
 		TSubclassOf<class ASoul> ExClass;
 
-		UPROPERTY(EditAnywhere, Category = Combat)
+	UPROPERTY(EditAnywhere, Category = Combat)
 		TSubclassOf<class ATreasure> GdClass;
+
+	UPROPERTY(VisibleAnywhere, Category = Player)
+		AProjectNo1Character* ProjectNo1Character;
+
+	UPROPERTY(EditAnywhere)
+		bool bAttack;
+
+	UPROPERTY(EditAnywhere, Category = "Skill")
+		float LeftCastSkillCount;//  지속 시간
 
 };
